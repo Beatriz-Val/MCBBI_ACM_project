@@ -1,0 +1,103 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+### Directory
+
+```{r}
+setwd('~/')
+setwd('C:/Users/beatr/OneDrive - FCT NOVA/Ambiente de Trabalho/Mestrado/2º semestre/ACM/Project')
+```
+
+### Libraries
+
+```{r}
+library("ChIPpeakAnno")
+library("GenomicRanges")
+library("EnsDb.Hsapiens.v86")
+library("org.Hs.eg.db")
+```
+
+### Data
+
+```{r}
+# Read the bed files
+peaks_52 <- as.data.frame(read.table("Arid_2_52_extended_peaks.bed",header = FALSE, sep="\t",stringsAsFactors=FALSE))
+
+peaks_53 <- as.data.frame(read.table("Arid_2_53_extended_peaks.bed",header = FALSE, sep="\t",stringsAsFactors=FALSE))
+
+
+## Transform to GRanges objects
+gr_52 <- GRanges(seqnames=peaks_52$V1, ranges=IRanges(start=peaks_52$V2, end=peaks_52$V3))
+gr_53 <- GRanges(seqnames=peaks_52$V1, ranges=IRanges(start=peaks_52$V2, end=peaks_52$V3))
+
+```
+
+## Annotation
+
+```{r}
+## create annotation file from EnsDb (Ensembl) or TxDb (transcript annotation) packages
+
+annoData <- toGRanges(EnsDb.Hsapiens.v86, feature="gene")
+annoData[1:2]
+```
+
+```{r}
+# annotate the peak GRanges object with peaks mapped to gene with a -2000 and 500 bp window around the TSS
+
+anno.gr_52 <- annotatePeakInBatch(gr_52, 
+AnnotationData=annoData, 
+output="nearestBiDirectionalPromoters",
+bindingRegion=c(-2000, 500))
+
+#trim out of bound ranges
+anno.gr_52 <- trim(anno.gr_52)
+
+
+
+
+#annotate with Entrez IDs
+
+anno.gr_52 <- addGeneIDs(anno.gr_52,"org.Hs.eg.db",IDs2Add = "entrez_id")
+
+# list annotated peaks
+head(anno.gr_52)
+
+
+```
+
+```{r}
+# annotate the peak GRanges object with peaks mapped to gene with a -2000 and 500 bp window around the TSS
+
+anno.gr_53 <- annotatePeakInBatch(gr_53, 
+AnnotationData=annoData, 
+output="nearestBiDirectionalPromoters",
+bindingRegion=c(-2000, 500))
+
+#trim out of bound ranges
+anno.gr_53 <- trim(anno.gr_53)
+
+
+
+
+#annotate with Entrez IDs
+
+anno.gr_53 <- addGeneIDs(anno.gr_53,"org.Hs.eg.db",IDs2Add = "entrez_id")
+
+# list annotated peaks
+head(anno.gr_53)
+```
+
+#### RNAseq data
+
+```{r}
+diff_exp_genes <- readLines('DEGs.txt')
+diff_exp_genes
+```
+
+### Cross results from RNAseq and ChIPseq
+
+```{r}
+intersect(anno.gr_53$gene_name, diff_exp_genes)
+```
