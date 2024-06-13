@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<h1>ACM project unix code</h1>
+<h2>Alignment of RNAseq profiles to the human transcriptome</h2>
+
+<h3>Login in the cluster</h3>
+<code> > ssh -p 12034 acmo02@cluster.di.fct.unl.pt   <code>
+
+<h3>Create a folder</h3>
+<code> > mkdir Beatriz </code>
+<p>  </p>
+<code> > mkdir Beatriz/project </code>
+<p>  </p>
+<code> > cd project </code>
+
+<h3> Copie necessary files to new directory</h3>
+<p> The human transcriptome (GENCODE v39) <p>
+<code> > cp -r /mnt/share/acmo/AppCOmics_data/Genomes . </code>
+
+<h3> Reserve a resource in interactive mode </h3>
+<code> > tmux </code>
+<p>  </p>
+<code> > oarsub -l walltime=3:00 -I</code>
+
+<h3> Align the RNAseq data to the human transcriptome </h3>
+<p> The alignment for all the samples was done with the bash code on the file multiAlignment.sh and as input used a file with the name of the samples and the fasta file name </p>
+<h4> Make the code executable </h4>
+<code> > chmod +x multiAlignment.sh </code>
+<h4> Run </h4>
+<code> > ./multiAlignment.sh targets.txt </code>
+
+<p> A folder for each sample was created with the output abundance.h5 abundance.tsv run_info.json </p>
+
+<h4> Check the output </h4>
+<code> > head Arid1bKD_1/abundance.tsv <code>
+
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<h1>ACM project unix code</h1>
+<h2>Chromatin Immunoprecipitation Sequencing (ChIPseq) Profiles</h2>
+
+<h3>Login in the cluster</h3>
+<code> > ssh -p 12034 acmo02@cluster.di.fct.unl.pt   <code>
+
+<h3>Change Directory</h3>
+<code> > cd Beatriz/project </code>
+<p>  </p>
+<code> > mkdir chipseq2 </code>
+<p>  </p>
+<code> > cd chipseq2 </code>
+
+<h3> Copie necessary files to new directory</h3>
+<p> The human transcriptome (GENCODE v39) <p>
+<code> > cp -r /mnt/share/acmo/AppCOmics_data/Genomes . </code>
+
+<h3> Reserve a resource in interactive mode </h3>
+<code> > tmux </code>
+<p>  </p>
+<code> > oarsub -l walltime=3:00 -I</code>
+
+<h3> Get the samples from the GEO </h3>
+<p> - Arid2_rep1 </p>
+<code> > docker run -v $PWD:/data --rm -it ncbi/sra-tools:2.11.1 fasterq-dump --split-files SRR2051052 </code>
+<p> - Arid2_rep2 </p>
+<code> > docker run -v $PWD:/data --rm -it ncbi/sra-tools:2.11.1 fasterq-dump --split-files SRR2051053 </code>
+<p> - Input </p>
+<code> > docker run -v $PWD:/data --rm -it ncbi/sra-tools:2.11.1 fasterq-dump --split-files SRR2051056  </code>
+
+
+<h3> Align the ChIPseq data to the human genome  </h3>
+<p> The two replicates from Arid2 and the inout was aligned to the genome </p>
+<p> </p>
+<p> - Replicate 1 </p>
+<code> > docker run -v $PWD:$PWD -w=$PWD --rm  biocontainers/bowtie2:v2.4.1_cv1 bowtie2 -k 1 --threads 10 -x ./GRCh38_noalt_as/GRCh38_noalt_as -U SRR2051052.fastq -S Arid2_52_ChIPseq.sam </code>
+<p> - Replicate 2</p>
+<code> > docker run -v $PWD:$PWD -w=$PWD --rm  biocontainers/bowtie2:v2.4.1_cv1 bowtie2 -k 1 --threads 10 -x ./GRCh38_noalt_as/GRCh38_noalt_as -U SRR2051053.fastq -S Arid2_53_ChIPseq.sam </code>
+<p> - Input </p>
+<code> > docker run -v $PWD:$PWD -w=$PWD --rm  biocontainers/bowtie2:v2.4.1_cv1 bowtie2 -k 1 --threads 10 -x ./GRCh38_noalt_as/GRCh38_noalt_as -U SRR2051056.fastq -S Arid2_56_ChIPseq.sam </code>
+
+<h3>  convert the output file in bam format and sort the reads by genomic position using sambamba tool</h3>
+<p> - Replicate 1 </p>
+<code> > docker run -v $PWD:$PWD -w=$PWD --rm  miguelpmachado/sambamba:0.7.1-01 sambamba view -t 10 -S -f bam  Arid2_52_ChIPseq.sam -o temp52.bam <code>
+<p> </p>
+<code> > docker run -v $PWD:$PWD -w=$PWD --rm miguelpmachado/sambamba:0.7.1-01 sambamba sort -t 10 -o arid2_52_ChIPseq.bam temp52.bam </code>  
+<p> - Replicate 2 </p>
+<code> > docker run -v $PWD:$PWD -w=$PWD --rm  miguelpmachado/sambamba:0.7.1-01 sambamba view -t 10 -S -f bam  Arid2_53_ChIPseq.sam -o temp53.bam <code>
+<p> </p>
+<code> docker run -v $PWD:$PWD -w=$PWD --rm miguelpmachado/sambamba:0.7.1-01 sambamba sort -t 10 -o Arid2_53_ChIPseq.bam temp53.bam </code>    
+<p> - Input </p>
+<code> > docker run -v $PWD:$PWD -w=$PWD --rm  miguelpmachado/sambamba:0.7.1-01 sambamba view -t 10 -S -f bam  Arid2_56_ChIPseq.sam -o temp56.bam <code>  
+<p> </p>
+<code> > docker run -v $PWD:$PWD -w=$PWD --rm miguelpmachado/sambamba:0.7.1-01 sambamba sort -t 10 -o arid2_56_ChIPseq.bam temp56.bam </code>  
+
+<h3>  Identify enriched ChIPseq regions  </h3>
+<p> Replicate 1 </p>
+<code> > docker run -v $PWD:$PWD -w=$PWD --rm resolwebio/chipseq:5.1.3 macs2 callpeak -t Arid2_53_ChIPseq.bam -c arid2_56_chipseq.bam -f BAM -g 2.7e9 -q 0.05 -n Arid2_53 --outdir macs2 </code>
+<p> Replicate 2 </p>
+<code> > docker run -v $PWD:$PWD -w=$PWD --rm resolwebio/chipseq:5.1.3 macs2 callpeak -t arid2_52_ChIPseq.bam -c arid2_56_chipseq.bam -f BAM -g 2.7e9 -q 0.05 -n Arid2_53 --outdir macs2 </code>
+
+<h3> Filter out blacklisted regions from ChIPseq results </h3>
+<p> - Replicate 1 </p>
+<code> > docker run -v $PWD:$PWD -w=$PWD biocontainers/bedtools:v2.27.1dfsg-4-deb_cv1 bedtools intersect -v -a macs2/Arid2_52_peaks.narrowPeak -b Genomes/hg38.blacklist.bed > Arid2_peaks_filtered.bed </code>
+<p>  </p>
+<code> > docker run -v $PWD:$PWD -w=$PWD biocontainers/bedtools:v2.27.1dfsg-4-deb_cv1 bedtools intersect -v -a macs2/Arid2_52_summits.bed -b Genomes/hg38.blacklist.bed > Arid2_52_summit_filtered.bed </code>
+<p> - Replicate 2 </p>
+<code> > docker run -v $PWD:$PWD -w=$PWD biocontainers/bedtools:v2.27.1dfsg-4-deb_cv1 bedtools intersect -v -a macs2/Arid2_53_peaks.narrowPeak -b Genomes/hg38.blacklist.bed > Arid3_peaks_filtered.bed </code>
+<p>  </p>
+<code> > docker run -v $PWD:$PWD -w=$PWD biocontainers/bedtools:v2.27.1dfsg-4-deb_cv1 bedtools intersect -v -a macs2/Arid2_53_summits.bed -b Genomes/hg38.blacklist.bed > Arid2_53_summit_filtered.bed </code>
+
+
+<h3>  Identify enriched motifs in ChIPseq peaks  </h3>
+<p> - Replicate 1</p>
+
+<code> > docker run -v $PWD:$PWD -w=$PWD --rm biocontainers/bedtools:v2.27.1dfsg-4-deb_cv1 bedtools slop -i Arid2_peaks_filtered.bed -g GenomesgenomeSize.txt -b 200 > Arid_2_52_extended_peaks.bed <code>
+<p> </p>
+<code> > docker run -v $PWD:$PWD -w=$PWD biocontainers/bedtools:v2.27.1dfsg-4-deb_cv1 bedtools getfasta -fi Genomes/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna -bed Arid2_52_summit_filtered.bed > Arid_2_52_peak_sequences.fasta </code>
+<p> </p>
+<code> > docker run -v $PWD:$PWD -w=$PWD --rm nfcore/chipseq:latest findMotifs.pl Arid_2_52_peak_sequences.fasta fasta HOMER -fasta Genomes/gencode.v26.annotation_promoters.fasta </code>
+
+<p> - Replicate 2</p>
+<code> > docker run -v $PWD:$PWD -w=$PWD --rm biocontainers/bedtools:v2.27.1dfsg-4-deb_cv1 bedtools slop -i Arid3_peaks_filtered.bed -g GenomesgenomeSize.txt -b 200 > Arid_2_53_extended_peaks.bed <code>
+<p> </p>
+<code> > docker run -v $PWD:$PWD -w=$PWD biocontainers/bedtools:v2.27.1dfsg-4-deb_cv1 bedtools getfasta -fi Genomes/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna -bed Arid2_53_summit_filtered.bed > Arid_2_53_peak_sequences.fasta </code>
+<p> </p>
+<code> > docker run -v $PWD:$PWD -w=$PWD --rm nfcore/chipseq:latest findMotifs.pl Arid_2_53_peak_sequences.fasta fasta HOMER -fasta Genomes/gencode.v26.annotation_promoters.fasta </code>
+
+
+</body>
+</html>
