@@ -1,0 +1,180 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+### Directory
+
+```{r}
+setwd('~/')
+setwd('C:/Users/andre/Documents/Mestrado Bioinformática/Mestrado/2º Semestre/OMICs/Aulas praticas/Projecto')
+```
+
+### Libraries
+
+```{r}
+if (!require("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+
+BiocManager::install(c("ChIPpeakAnno","GenomicRanges", "EnsDb.Hsapiens.v86", "org.Hs.eg.db"))
+```
+```{r}
+sessionInfo()
+```
+
+
+```{r}
+library("ChIPpeakAnno")
+library("GenomicRanges")
+library("EnsDb.Hsapiens.v86")
+library("org.Hs.eg.db")
+```
+
+### Data
+
+```{r}
+# Read the bed files
+peaks_52 <- as.data.frame(read.table("Arid_2_52_extended_peaks.bed",header = FALSE, sep="\t",stringsAsFactors=FALSE))
+
+peaks_53 <- as.data.frame(read.table("Arid_2_53_extended_peaks.bed",header = FALSE, sep="\t",stringsAsFactors=FALSE))
+
+
+## Transform to GRanges objects
+gr_52 <- GRanges(seqnames=peaks_52$V1, ranges=IRanges(start=peaks_52$V2, end=peaks_52$V3))
+gr_53 <- GRanges(seqnames=peaks_53$V1, ranges=IRanges(start=peaks_53$V2, end=peaks_53$V3))
+
+```
+
+## Annotation
+
+```{r}
+## create annotation file from EnsDb (Ensembl) or TxDb (transcript annotation) packages
+
+annoData <- toGRanges(EnsDb.Hsapiens.v86, feature="gene")
+annoData[1:2]
+```
+
+```{r}
+# annotate the peak GRanges object with peaks mapped to gene with a -2000 and 500 bp window around the TSS
+
+anno.gr_52 <- annotatePeakInBatch(gr_52, 
+AnnotationData=annoData, 
+output="nearestBiDirectionalPromoters",
+bindingRegion=c(-2000, 500))
+
+#trim out of bound ranges
+anno.gr_52 <- trim(anno.gr_52)
+
+
+
+
+#annotate with Entrez IDs
+
+anno.gr_52 <- addGeneIDs(anno.gr_52,"org.Hs.eg.db",IDs2Add = "entrez_id")
+
+# list annotated peaks
+head(anno.gr_52)
+
+# extract gene names
+gene_names_52 <- unique(anno.gr_52$gene_name)
+gene_names_52 <- gene_names_52[!is.na(gene_names)]
+write.table(gene_names_52, "anno.gr_52.txt", quote = FALSE, row.names = FALSE, col.names = FALSE)
+
+```
+
+```{r}
+# annotate the peak GRanges object with peaks mapped to gene with a -2000 and 500 bp window around the TSS
+
+anno.gr_53 <- annotatePeakInBatch(gr_53, 
+AnnotationData=annoData, 
+output="nearestBiDirectionalPromoters",
+bindingRegion=c(-2000, 500))
+
+#trim out of bound ranges
+anno.gr_53 <- trim(anno.gr_53)
+
+#annotate with Entrez IDs
+
+anno.gr_53 <- addGeneIDs(anno.gr_53,"org.Hs.eg.db",IDs2Add = "entrez_id")
+
+# list annotated peaks
+head(anno.gr_53)
+
+# extract gene names
+gene_names_53 <- unique(anno.gr_53$gene_name)
+gene_names_53 <- gene_names_53[!is.na(gene_names)]
+write.table(gene_names_53, "anno.gr_53.txt", quote = FALSE, row.names = FALSE, col.names = FALSE)
+```
+
+#### RNAseq data
+
+```{r}
+diff_exp_genes <- readLines('DEGs.txt')
+diff_exp_genes
+```
+
+### Cross results from RNAseq and ChIPseq
+
+```{r}
+anno.both <- intersect(anno.gr_52$gene_name, anno.gr_53$gene_name)
+
+# extract gene names
+write.table(anno.both, "anno.both.txt", quote = FALSE, row.names = FALSE, col.names = FALSE)
+```
+
+```{r}
+common <- intersect(anno.both, diff_exp_genes)
+
+# extract gene names
+write.table(common, "DEGs_peaks.txt", quote = FALSE, row.names = FALSE, col.names = FALSE)
+```
+
+```{r}
+# Filter the GRanges object to keep only the genes that are in the intersection of the two samples
+filtered_gr <- anno.gr_53[anno.gr_53$gene_name %in% anno.both]
+
+#Extract the insideFeature column for the filtered genes
+inside_features <- mcols(filtered_gr)$insideFeature
+
+#Create a frequency table to count how many genes have each feature
+feature_counts <- table(inside_features)
+print(feature_counts)
+
+# Count occurrences of each gene
+gene_counts <- table(filtered_gr$gene_name)
+
+# Count how many genes have more than one location
+num_genes_multiple_locations <- sum(gene_counts > 1)
+print(paste("Number of genes with more than one location:", num_genes_multiple_locations))
+
+# List the genes with more than one location
+genes_multiple_locations <- names(gene_counts[gene_counts > 1])
+print("Genes with more than one location:")
+print(genes_multiple_locations)
+```
+
+```{r}
+# Filter the GRanges object to keep only the genes that are in the intersection of the two samples
+filtered_com <- anno.gr_53[anno.gr_53$gene_name %in% common]
+
+#Extract the insideFeature column for the filtered genes
+inside_features_com <- mcols(filtered_com)$insideFeature
+
+#Create a frequency table to count how many genes have each feature
+feature_counts_com <- table(inside_features_com)
+print(feature_counts_com)
+
+# Count occurrences of each gene
+gene_counts_com <- table(filtered_com$gene_name)
+
+# Count how many genes have more than one location
+num_genes_multiple_locations_com <- sum(gene_counts_com > 1)
+print(paste("Number of genes with more than one location:", num_genes_multiple_locations_com))
+
+# List the genes with more than one location
+genes_multiple_locations_com <- names(gene_counts_com[gene_counts_com > 1])
+print("Genes with more than one location:")
+print(genes_multiple_locations_com)
+
+```
+
